@@ -1,0 +1,58 @@
+name: Build Android APK
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # STEP 1: CLEANING - Frees up 25GB of space so the build doesn't crash
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      # STEP 2: SETUP - Use Python 3.11 and Java 17
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # STEP 3: CATALYSTS - Install libraries needed for Pandas/Numpy
+      - name: Install System Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip autoconf libtool pkg-config \
+          zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 \
+          cmake libffi-dev libssl-dev automake autopoint gettext patchelf \
+          liblzma-dev
+
+      # STEP 4: TOOLS - Install Buildozer and Cython
+      - name: Install Buildozer and Cython
+        run: |
+          pip install --upgrade pip
+          # We lock Cython to a version compatible with Kivy
+          pip install --user --upgrade buildozer "cython<3.0"
+
+      # STEP 5: SYNTHESIS - The main build command
+      - name: Build with Buildozer
+        run: |
+          export PATH=$PATH:$HOME/.local/bin
+          # 'yes |' automatically accepts the Android SDK license
+          yes | buildozer -v android debug
+
+      # STEP 6: RESULT - Upload the APK
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StudentTracker-APK
+          path: bin/*.apk
